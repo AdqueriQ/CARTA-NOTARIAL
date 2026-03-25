@@ -153,15 +153,24 @@ def fill_docx(data):
     )
 
     # ── 8. Llenar filas de la tabla (hasta 6 productos) ─────
-    tbl_start = doc.index('<w:tbl>')
-    tbl_end   = doc.index('</w:tbl>') + 8
+    tbl_start = doc.index('<w:tbl')
+    tbl_end   = doc.index('</w:tbl>', tbl_start) + 8
     tbl_xml   = doc[tbl_start:tbl_end]
 
     productos = normalize_products(data)
 
-    rows = tbl_xml.split('<w:tr ')
-    # rows[2] = primera fila de datos (vacía) en la plantilla
-    old_data_row = '<w:tr ' + rows[2]
+    row_matches = re.findall(r'<w:tr\b.*?</w:tr>', tbl_xml, flags=re.DOTALL)
+    if len(row_matches) < 2:
+        raise ValueError('No se encontró una fila de datos en la tabla del documento')
+
+    # Usar la primera fila sin texto como plantilla; si no existe, usar la segunda.
+    old_data_row = None
+    for r in row_matches[1:]:
+        if '<w:t' not in r:
+            old_data_row = r
+            break
+    if old_data_row is None:
+        old_data_row = row_matches[1]
 
     row_chunks = []
     for p in productos:
