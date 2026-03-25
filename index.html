@@ -463,15 +463,15 @@ function productoTemplate(i) {
         '<label>N° de Contrato</label>' +
         '<div class="contract-wrap">' +
           '<span class="contract-prefix">0011-</span>' +
-          '<input type="text" class="ncontrato-oficina contract-piece contract-piece-short" maxlength="4" autocomplete="off" inputmode="numeric" placeholder="0310">' +
+          '<input type="text" class="ncontrato-oficina contract-piece contract-piece-short" maxlength="4" autocomplete="off" inputmode="numeric">' +
           '<span class="contract-sep">-</span>' +
-          '<input type="text" class="ncontrato-numero contract-piece" maxlength="10" autocomplete="off" inputmode="numeric" placeholder="9600506798">' +
+          '<input type="text" class="ncontrato-numero contract-piece" maxlength="10" autocomplete="off" inputmode="numeric">' +
         '</div>' +
         '<div class="hint">Formato visual: 0011-0310-9600506798</div>' +
       '</div>' +
       '<div class="field">' +
         '<label>Monto Cuotas Impagas (S/)</label>' +
-        '<input type="text" class="monto" placeholder="Ej: 4,250.00" inputmode="decimal" oninput="formatMontoField(this)">' +
+        '<input type="text" class="monto" inputmode="decimal" oninput="formatMontoField(this)">' +
       '</div>' +
     '</div>' +
   '</div>';
@@ -494,7 +494,6 @@ function addProducto() {
   var n = box.querySelectorAll('.prod-row').length;
   if (n >= MAX_PRODUCTOS) return;
   box.insertAdjacentHTML('beforeend', productoTemplate(n + 1));
-  syncOfficeCodeToContracts();
   refreshProductosHead();
 }
 
@@ -529,15 +528,6 @@ function formatMontoField(input) {
   if (!intPart) intPart = '0';
   var withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   input.value = hadDot ? withCommas + '.' + decPart : withCommas;
-}
-
-function syncOfficeCodeToContracts() {
-  var cod = normalizeDigits(G('cod_ofic')).slice(0, 4) || '0310';
-  document.querySelectorAll('.ncontrato-oficina').forEach(function(input) {
-    if (!normalizeDigits(input.value) || normalizeDigits(input.value).length < 4) {
-      input.value = cod;
-    }
-  });
 }
 
 function getProductos(withValidation) {
@@ -724,7 +714,6 @@ function generarPDF() {
   });
 }
 
-document.getElementById('cod_ofic').addEventListener('input', syncOfficeCodeToContracts);
 addProducto();
 </script>
 </body>
