@@ -235,21 +235,12 @@ def generar_pdf():
         with open(docx_path, 'wb') as f:
             f.write(docx_bytes)
 
-        # Conversión rápida via unoserver (LibreOffice ya cargado en memoria)
+        # LibreOffice headless conversion
         result = subprocess.run(
-            ['unoconvert', '--convert-to', 'pdf', docx_path, pdf_path],
-            capture_output=True, timeout=30
+            ['libreoffice', '--headless', '--convert-to', 'pdf',
+             '--outdir', tmpdir, docx_path],
+            capture_output=True, timeout=60
         )
-
-        # Fallback: arrancar LibreOffice directo si unoserver no está disponible
-        if result.returncode != 0 or not os.path.exists(pdf_path):
-            if os.path.exists(pdf_path):
-                os.remove(pdf_path)
-            result = subprocess.run(
-                ['libreoffice', '--headless', '--convert-to', 'pdf',
-                 '--outdir', tmpdir, docx_path],
-                capture_output=True, timeout=60
-            )
 
         if result.returncode != 0 or not os.path.exists(pdf_path):
             return jsonify({
