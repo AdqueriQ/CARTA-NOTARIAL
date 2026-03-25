@@ -124,6 +124,18 @@ body {
   padding: 11px 10px;
   border-right: 1px solid var(--border);
 }
+.contract-piece {
+  width: 100%;
+  min-width: 0;
+}
+.contract-piece-short {
+  width: 78px;
+  max-width: 78px;
+}
+.contract-sep {
+  color: var(--muted);
+  font-weight: 800;
+}
 .contract-wrap input {
   border: none !important;
   border-radius: 0 !important;
@@ -451,13 +463,15 @@ function productoTemplate(i) {
         '<label>N° de Contrato</label>' +
         '<div class="contract-wrap">' +
           '<span class="contract-prefix">0011-</span>' +
-          '<input type="text" class="ncontrato" maxlength="15" autocomplete="off" placeholder="0310-9600506798">' +
+          '<input type="text" class="ncontrato-oficina contract-piece contract-piece-short" maxlength="4" autocomplete="off" inputmode="numeric" placeholder="0310">' +
+          '<span class="contract-sep">-</span>' +
+          '<input type="text" class="ncontrato-numero contract-piece" maxlength="10" autocomplete="off" inputmode="numeric" placeholder="9600506798">' +
         '</div>' +
-        '<div class="hint">Completa solo: 0310-9600506798</div>' +
+        '<div class="hint">Formato visual: 0011-0310-9600506798</div>' +
       '</div>' +
       '<div class="field">' +
         '<label>Monto Cuotas Impagas (S/)</label>' +
-        '<input type="number" class="monto" placeholder="Ej: 4250.00" min="0" step="0.01">' +
+        '<input type="text" class="monto" placeholder="Ej: 4,250.00" inputmode="decimal" oninput="formatMontoField(this)">' +
       '</div>' +
     '</div>' +
   '</div>';
@@ -480,6 +494,7 @@ function addProducto() {
   var n = box.querySelectorAll('.prod-row').length;
   if (n >= MAX_PRODUCTOS) return;
   box.insertAdjacentHTML('beforeend', productoTemplate(n + 1));
+  syncOfficeCodeToContracts();
   refreshProductosHead();
 }
 
@@ -491,14 +506,38 @@ function removeProducto(btn) {
   refreshProductosHead();
 }
 
-function normalizeContrato(v) {
-  var t = (v || '').trim().toUpperCase();
-  if (t.indexOf('0011-') === 0) t = t.slice(5);
-  return t;
+function normalizeDigits(v) {
+  return String(v || '').replace(/\D/g, '');
 }
 
-function contratoCompleto(suffix) {
-  return '0011-' + suffix;
+function contratoCompleto(codOficina, numeroContrato) {
+  return '0011-' + codOficina + '-' + numeroContrato;
+}
+
+function parseMonto(v) {
+  var clean = String(v || '').replace(/,/g, '').trim();
+  return clean ? parseFloat(clean) : NaN;
+}
+
+function formatMontoField(input) {
+  var raw = String((input || {}).value || '').replace(/[^\d.]/g, '');
+  var firstDot = raw.indexOf('.');
+  var hadDot = firstDot !== -1;
+  var intPart = hadDot ? raw.slice(0, firstDot) : raw;
+  var decPart = hadDot ? raw.slice(firstDot + 1).replace(/\./g, '').slice(0, 2) : '';
+  intPart = intPart.replace(/^0+(\d)/, '$1');
+  if (!intPart) intPart = '0';
+  var withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  input.value = hadDot ? withCommas + '.' + decPart : withCommas;
+}
+
+function syncOfficeCodeToContracts() {
+  var cod = normalizeDigits(G('cod_ofic')).slice(0, 4) || '0310';
+  document.querySelectorAll('.ncontrato-oficina').forEach(function(input) {
+    if (!normalizeDigits(input.value) || normalizeDigits(input.value).length < 4) {
+      input.value = cod;
+    }
+  });
 }
 
 function getProductos(withValidation) {
@@ -507,14 +546,15 @@ function getProductos(withValidation) {
   for (var i = 0; i < rows.length; i++) {
     var row = rows[i];
     var prod = (row.querySelector('.tipo_prod') || {}).value || '';
-    var contratoSuffix = normalizeContrato((row.querySelector('.ncontrato') || {}).value || '');
+    var codOficina = normalizeDigits((row.querySelector('.ncontrato-oficina') || {}).value || '').slice(0, 4);
+    var numeroContrato = normalizeDigits((row.querySelector('.ncontrato-numero') || {}).value || '').slice(0, 10);
     var montoRaw = (row.querySelector('.monto') || {}).value || '';
-    var montoNum = parseFloat(montoRaw);
+    var montoNum = parseMonto(montoRaw);
     var rowNum = i + 1;
 
     if (withValidation) {
       if (!prod) { alert('Selecciona el tipo de producto en Producto ' + rowNum + '.'); return []; }
-      if (!/^\d{4}-\d{10}$/.test(contratoSuffix)) {
+      if (!(codOficina.length === 4 && numeroContrato.length === 10)) {
         alert('Contrato inválido en Producto ' + rowNum + '. Usa formato 0310-9600506798.');
         return [];
       }
@@ -526,7 +566,7 @@ function getProductos(withValidation) {
 
     out.push({
       tipo_prod: prod || 'PRESTAMO',
-      ncontrato: contratoCompleto(contratoSuffix || '0310-0000000000'),
+      ncontrato: contratoCompleto(codOficina || '0310', numeroContrato || '0000000000'),
       monto: fmtMonto(isFinite(montoNum) ? montoNum : 0)
     });
   }
@@ -562,8 +602,9 @@ function fmtFecha(v) {
 }
 
 function fmtMonto(v) {
-  if (!v) return '0.00';
-  return parseFloat(v).toLocaleString('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2});
+  var n = parseMonto(v);
+  if (!isFinite(n)) return '0.00';
+  return n.toLocaleString('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 
 function goResumen() {
@@ -612,6 +653,7 @@ function getPayload() {
   return {
     fecha:         fmtFecha(G('fecha')),
     nombre:        G('nombre')   || 'NOMBRE COMPLETO',
+    tipo_persona:  tipo || 'natural',
     representante: (tipo==='juridica') ? G('representante') : '',
     direccion:     G('direccion')|| 'DIRECCIÓN',
     cod_ofic:      G('cod_ofic') || '0310',
@@ -682,6 +724,7 @@ function generarPDF() {
   });
 }
 
+document.getElementById('cod_ofic').addEventListener('input', syncOfficeCodeToContracts);
 addProducto();
 </script>
 </body>

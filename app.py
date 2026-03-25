@@ -85,6 +85,7 @@ def fill_docx(data):
             files[name] = z.read(name)
 
     doc = files['word/document.xml'].decode('utf-8')
+    is_juridica = str(data.get('tipo_persona', 'natural')).strip().lower() == 'juridica'
 
     # ── 1. Fecha (reemplaza párrafo completo) ──────────────
     old_fecha = doc[
@@ -104,10 +105,19 @@ def fill_docx(data):
     doc = doc.replace(old_fecha, new_fecha)
 
     # ── 2. NOMBRE COMPLETO ─────────────────────────────────
-    doc = doc.replace(
-        '<w:t>NOMBRE COMPLETO</w:t>',
-        '<w:t xml:space="preserve">' + xml_escape(data['nombre']) + '</w:t>'
-    )
+    if is_juridica:
+        doc = re.sub(
+            r'<w:r[^>]*>.*?<w:t>NOMBRE COMPLETO</w:t>.*?</w:r>',
+            make_run(data['nombre'], bold=True),
+            doc,
+            count=1,
+            flags=re.DOTALL,
+        )
+    else:
+        doc = doc.replace(
+            '<w:t>NOMBRE COMPLETO</w:t>',
+            '<w:t xml:space="preserve">' + xml_escape(data['nombre']) + '</w:t>'
+        )
 
     # ── 3. Representante Legal (insertar párrafo si aplica) ─
     if data.get('representante','').strip():
@@ -117,7 +127,7 @@ def fill_docx(data):
             '<w:jc w:val="both"/>'
             '<w:rPr><w:rFonts w:ascii="Lato" w:eastAsia="Lato" w:hAnsi="Lato" w:cs="Lato"/>'
             '<w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:pPr>'
-            + make_run(data['representante']) +
+            + make_run(data['representante'], bold=is_juridica) +
             '</w:p>'
         )
         # insertar después del párrafo NOMBRE
