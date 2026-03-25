@@ -108,6 +108,64 @@ body {
 }
 .field .hint { font-size: 11px; color: var(--muted); margin-top: 5px; }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.contract-wrap {
+  display: flex;
+  align-items: center;
+  border: 1.5px solid var(--border);
+  border-radius: 9px;
+  background: #FAFCFF;
+  overflow: hidden;
+}
+.contract-prefix {
+  background: #e9f0fb;
+  color: var(--blue);
+  font-weight: 800;
+  font-size: 13px;
+  padding: 11px 10px;
+  border-right: 1px solid var(--border);
+}
+.contract-wrap input {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  text-align: center;
+  font-weight: 700;
+}
+.contract-wrap:focus-within {
+  border-color: var(--sky);
+  box-shadow: 0 0 0 3px rgba(4,159,217,.13);
+  background: #fff;
+}
+.prod-row {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.prod-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.prod-title {
+  color: var(--blue);
+  font-weight: 800;
+  font-size: 13px;
+}
+.prod-row .monto {
+  text-align: center;
+  font-weight: 700;
+}
+.btn-del {
+  border: none;
+  background: transparent;
+  color: #a00d26;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
 .divider {
   display: flex; align-items: center; gap: 10px;
   margin: 18px 0 14px;
@@ -251,24 +309,10 @@ body {
   <div class="step" id="s3">
     <div class="step-tag">Paso 3 de 5</div>
     <div class="step-title">Detalle del Cr&#233;dito</div>
-    <div class="field">
-      <label>Tipo de Producto</label>
-      <select id="tipo_prod">
-        <option value="" disabled selected>&#8212; Seleccionar &#8212;</option>
-        <option value="PRÉSTAMO">Pr&#233;stamo</option>
-        <option value="TARJETA DE CRÉDITO">Tarjeta de Cr&#233;dito</option>
-      </select>
-    </div>
-    <div class="two-col">
-      <div class="field">
-        <label>N&#176; de Contrato / Pr&#233;stamo</label>
-        <input type="text" id="ncontrato" autocomplete="off" placeholder="Ej: 0041-2024-00789">
-      </div>
-      <div class="field">
-        <label>Deuda Total Vencida (S/)</label>
-        <input type="number" id="monto" placeholder="Ej: 4250.00" min="0" step="0.01">
-        <div class="hint">Solo el n&#250;mero, sin S/.</div>
-      </div>
+    <div id="productos"></div>
+    <button class="btn btn-s" type="button" id="btnAddProd" onclick="addProducto()">+ A&#241;adir Producto</button>
+    <div class="field" style="margin-top:8px">
+      <div class="hint">M&#225;ximo 6 productos. Formato de contrato: <strong>0011-0310-9600506798</strong>.</div>
     </div>
     <div class="nav">
       <button class="btn btn-g" onclick="go(2)">&#8592; Atr&#225;s</button>
@@ -352,6 +396,7 @@ var BACKEND_URL = 'https://carta-notarial.onrender.com';
 
 /* ══ STATE ═════════════════════════════════════════════ */
 var cur = 1, TOTAL = 5, tipo = null;
+var MAX_PRODUCTOS = 6;
 document.getElementById('fecha').valueAsDate = new Date();
 
 /* progress */
@@ -377,14 +422,115 @@ function go(n) {
     if (!G('direccion').trim()) { alert('Ingresa la dirección.'); return; }
   }
   if (n === 4) {
-    if (!G('tipo_prod')) { alert('Selecciona el tipo de producto.'); return; }
-    if (!G('ncontrato').trim()) { alert('Ingresa el N° de contrato.'); return; }
-    if (!G('monto') || parseFloat(G('monto')) <= 0) { alert('Ingresa la deuda total vencida.'); return; }
+    var items = getProductos(true);
+    if (!items.length) return;
   }
   document.querySelectorAll('.step').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById('s'+n).classList.add('active');
   cur = n; updProg();
   window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function productoTemplate(i) {
+  return '' +
+  '<div class="prod-row" data-i="'+i+'">' +
+    '<div class="prod-head">' +
+      '<div class="prod-title">Producto ' + i + '</div>' +
+      '<button type="button" class="btn-del" onclick="removeProducto(this)">Quitar</button>' +
+    '</div>' +
+    '<div class="field">' +
+      '<label>Tipo de Producto</label>' +
+      '<select class="tipo_prod">' +
+        '<option value="" disabled selected>— Seleccionar —</option>' +
+        '<option value="PRESTAMO">PRESTAMO</option>' +
+        '<option value="TARJETA DE CREDITO">TARJETA DE CREDITO</option>' +
+      '</select>' +
+    '</div>' +
+    '<div class="two-col">' +
+      '<div class="field">' +
+        '<label>N° de Contrato</label>' +
+        '<div class="contract-wrap">' +
+          '<span class="contract-prefix">0011-</span>' +
+          '<input type="text" class="ncontrato" maxlength="15" autocomplete="off" placeholder="0310-9600506798">' +
+        '</div>' +
+        '<div class="hint">Completa solo: 0310-9600506798</div>' +
+      '</div>' +
+      '<div class="field">' +
+        '<label>Monto Cuotas Impagas (S/)</label>' +
+        '<input type="number" class="monto" placeholder="Ej: 4250.00" min="0" step="0.01">' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function refreshProductosHead() {
+  var rows = document.querySelectorAll('.prod-row');
+  rows.forEach(function(row, idx){
+    var n = idx + 1;
+    row.setAttribute('data-i', n);
+    row.querySelector('.prod-title').textContent = 'Producto ' + n;
+    var btnDel = row.querySelector('.btn-del');
+    btnDel.style.display = rows.length === 1 ? 'none' : 'inline-block';
+  });
+  document.getElementById('btnAddProd').disabled = rows.length >= MAX_PRODUCTOS;
+}
+
+function addProducto() {
+  var box = document.getElementById('productos');
+  var n = box.querySelectorAll('.prod-row').length;
+  if (n >= MAX_PRODUCTOS) return;
+  box.insertAdjacentHTML('beforeend', productoTemplate(n + 1));
+  refreshProductosHead();
+}
+
+function removeProducto(btn) {
+  var box = document.getElementById('productos');
+  var rows = box.querySelectorAll('.prod-row');
+  if (rows.length <= 1) return;
+  btn.closest('.prod-row').remove();
+  refreshProductosHead();
+}
+
+function normalizeContrato(v) {
+  var t = (v || '').trim().toUpperCase();
+  if (t.indexOf('0011-') === 0) t = t.slice(5);
+  return t;
+}
+
+function contratoCompleto(suffix) {
+  return '0011-' + suffix;
+}
+
+function getProductos(withValidation) {
+  var out = [];
+  var rows = document.querySelectorAll('.prod-row');
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    var prod = (row.querySelector('.tipo_prod') || {}).value || '';
+    var contratoSuffix = normalizeContrato((row.querySelector('.ncontrato') || {}).value || '');
+    var montoRaw = (row.querySelector('.monto') || {}).value || '';
+    var montoNum = parseFloat(montoRaw);
+    var rowNum = i + 1;
+
+    if (withValidation) {
+      if (!prod) { alert('Selecciona el tipo de producto en Producto ' + rowNum + '.'); return []; }
+      if (!/^\d{4}-\d{10}$/.test(contratoSuffix)) {
+        alert('Contrato inválido en Producto ' + rowNum + '. Usa formato 0310-9600506798.');
+        return [];
+      }
+      if (!montoRaw || !isFinite(montoNum) || montoNum <= 0) {
+        alert('Monto inválido en Producto ' + rowNum + '.');
+        return [];
+      }
+    }
+
+    out.push({
+      tipo_prod: prod || 'PRESTAMO',
+      ncontrato: contratoCompleto(contratoSuffix || '0310-0000000000'),
+      monto: fmtMonto(isFinite(montoNum) ? montoNum : 0)
+    });
+  }
+  return out;
 }
 
 function setTipo(t) {
@@ -427,11 +573,10 @@ function goResumen() {
   var dir     = G('direccion')|| '—';
   var cod     = G('cod_ofic') || '0310';
   var nom     = G('nom_ofic') || 'TARAPOTO';
-  var prod    = G('tipo_prod')|| '—';
-  var cont    = G('ncontrato')|| '—';
-  var monto   = fmtMonto(G('monto'));
   var tel     = G('telefono') || '—';
   var fecha   = fmtFecha(G('fecha'));
+  var productos = getProductos(true);
+  if (!productos.length) return;
 
   var rows = [
     ['Tipo de cliente', tipo === 'juridica' ? 'Persona Jurídica' : 'Persona Natural'],
@@ -442,24 +587,28 @@ function goResumen() {
     ['Dirección', dir],
     ['Oficina', cod + ' ' + nom],
     ['—', ''],
-    ['Tipo de producto', prod],
-    ['N° de Contrato', cont],
-    ['Deuda total vencida', 'S/ ' + monto],
-    ['—', ''],
     ['Fecha', fecha],
     ['Teléfono', tel]
   );
 
+  var productosHtml = '<div class="row"><span class="k">Productos:</span><span class="v">' + productos.length + '</span></div>' +
+    productos.map(function(p, i){
+      return '<div class="row"><span class="k">' + (i+1) + '. ' + p.tipo_prod + ':</span><span class="v">' + p.ncontrato + ' | S/ ' + p.monto + '</span></div>';
+    }).join('');
+
   r.innerHTML = rows.map(function(row) {
     if (row[0] === '—') return '<hr class="sep">';
     return '<div class="row"><span class="k">'+row[0]+':</span><span class="v">'+row[1]+'</span></div>';
-  }).join('');
+  }).join('') + '<hr class="sep">' + productosHtml;
 
   document.getElementById('errbox').style.display = 'none';
   go(5);
 }
 
 function getPayload() {
+  var productos = getProductos(true);
+  if (!productos.length) return null;
+
   return {
     fecha:         fmtFecha(G('fecha')),
     nombre:        G('nombre')   || 'NOMBRE COMPLETO',
@@ -467,9 +616,10 @@ function getPayload() {
     direccion:     G('direccion')|| 'DIRECCIÓN',
     cod_ofic:      G('cod_ofic') || '0310',
     nom_ofic:      G('nom_ofic') || 'TARAPOTO',
-    tipo_prod:     G('tipo_prod')|| 'PRÉSTAMO',
-    ncontrato:     G('ncontrato')|| '—',
-    monto:         fmtMonto(G('monto')),
+    tipo_prod:     productos[0].tipo_prod,
+    ncontrato:     productos[0].ncontrato,
+    monto:         productos[0].monto,
+    productos:     productos,
     telefono:      G('telefono') || '996293543',
   };
 }
@@ -483,6 +633,11 @@ function generarPDF() {
 
   var url = BACKEND_URL.replace(/\/$/, '') + '/generar-pdf';
   var payload = getPayload();
+  if (!payload) {
+    btn.disabled = false;
+    btn.textContent = 'Descargar PDF';
+    return;
+  }
 
   fetch(url, {
     method:  'POST',
@@ -526,6 +681,8 @@ function generarPDF() {
     btn.innerHTML = 'Reintentar PDF';
   });
 }
+
+addProducto();
 </script>
 </body>
 </html>

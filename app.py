@@ -38,16 +38,39 @@ def make_run(text, bold=False, underline=False):
     )
     return '<w:r>' + rpr + '<w:t xml:space="preserve">' + xml_escape(text) + '</w:t></w:r>'
 
-def make_cell(text, width):
+def make_cell(text, width, align='both'):
     return (
         '<w:tc><w:tcPr><w:tcW w:w="' + str(width) + '" w:type="dxa"/></w:tcPr>'
         '<w:p w:rsidR="00B136EE" w:rsidRDefault="00B136EE" w:rsidP="00B136EE">'
-        '<w:pPr><w:jc w:val="both"/>'
+        '<w:pPr><w:jc w:val="' + align + '"/>'
         '<w:rPr><w:rFonts w:ascii="Lato" w:eastAsia="Lato" w:hAnsi="Lato" w:cs="Lato"/>'
         '<w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:pPr>'
         + make_run(text) +
         '</w:p></w:tc>'
     )
+
+def normalize_products(data):
+    productos = data.get('productos')
+    if isinstance(productos, list) and productos:
+        clean = []
+        for p in productos[:6]:
+            if not isinstance(p, dict):
+                continue
+            tipo = str(p.get('tipo_prod', '')).strip().upper()
+            contrato = str(p.get('ncontrato', '')).strip().upper()
+            monto = str(p.get('monto', '')).strip()
+            if not (tipo and contrato and monto):
+                continue
+            clean.append({'tipo_prod': tipo, 'ncontrato': contrato, 'monto': monto})
+        if clean:
+            return clean
+
+    # Compatibilidad con el formato antiguo (un solo producto)
+    return [{
+        'tipo_prod': str(data.get('tipo_prod', '')).strip().upper(),
+        'ncontrato': str(data.get('ncontrato', '')).strip().upper(),
+        'monto': str(data.get('monto', '')).strip(),
+    }]
 
 def fill_docx(data):
     """
@@ -129,22 +152,27 @@ def fill_docx(data):
         '<w:t xml:space="preserve"> ' + xml_escape(data['telefono']) + '</w:t>'
     )
 
-    # ── 8. Llenar primera fila de datos de la tabla ────────
+    # ── 8. Llenar filas de la tabla (hasta 6 productos) ─────
     tbl_start = doc.index('<w:tbl>')
     tbl_end   = doc.index('</w:tbl>') + 8
     tbl_xml   = doc[tbl_start:tbl_end]
 
+    productos = normalize_products(data)
+
     rows = tbl_xml.split('<w:tr ')
-    # rows[2] = primera fila de datos (vacía)
+    # rows[2] = primera fila de datos (vacía) en la plantilla
     old_data_row = '<w:tr ' + rows[2]
-    new_data_row = (
-        '<w:tr w:rsidR="00B136EE" w:rsidTr="00B136EE">'
-        + make_cell(data['tipo_prod'], 2942)
-        + make_cell(data['ncontrato'], 2943)
-        + make_cell('S/ ' + data['monto'], 2943)
-        + '</w:tr>'
-    )
-    new_tbl = tbl_xml.replace(old_data_row, new_data_row, 1)
+
+    row_chunks = []
+    for p in productos:
+        row_chunks.append(
+            '<w:tr w:rsidR="00B136EE" w:rsidTr="00B136EE">'
+            + make_cell(p['tipo_prod'], 2942, 'left')
+            + make_cell(p['ncontrato'], 2943, 'center')
+            + make_cell('S/ ' + p['monto'], 2943, 'center')
+            + '</w:tr>'
+        )
+    new_tbl = tbl_xml.replace(old_data_row, ''.join(row_chunks), 1)
     doc = doc[:tbl_start] + new_tbl + doc[tbl_end:]
 
     files['word/document.xml'] = doc.encode('utf-8')
@@ -161,7 +189,7 @@ def fill_docx(data):
 # ─── rutas ───────────────────────────────────────────────
 @app.route('/', methods=['GET'])
 def index():
-    return send_from_directory(BASE_DIR, 'carta_notarial_wizard.html')
+    return send_from_directory(BASE_DIR, 'index.html')
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -176,6 +204,13 @@ def generar_pdf():
     for k in required:
         if not data.get(k,'').strip():
             return jsonify({'error': f'Campo requerido: {k}'}), 400
+
+    productos = normalize_products(data)
+    if not productos:
+        return jsonify({'error': 'Debe ingresar al menos 1 producto'}), 400
+    if len(productos) > 6:
+        return jsonify({'error': 'Solo se permiten hasta 6 productos'}), 400
+    data['productos'] = productos
 
     try:
         docx_bytes = fill_docx(data)
@@ -205,12 +240,17 @@ def generar_pdf():
 
         nombre_archivo = 'Carta_Notarial_' + re.sub(r'[^a-zA-Z0-9]','_', data['nombre'])[:30] + '.pdf'
 
-        return send_file(
-            pdf_path,
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name=nombre_archivo
-        )
+        import io
+        with open(pdf_path, 'rb') as f:
+            pdf_bytes = f.read()
+
+    # Fuera del TemporaryDirectory — enviamos desde memoria
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=nombre_archivo
+    )
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
