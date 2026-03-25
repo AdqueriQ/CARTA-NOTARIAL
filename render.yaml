@@ -1,11 +1,8 @@
 services:
   - type: web
-    name: carta-notarial-api
-    runtime: python
-    buildCommand: |
-      apt-get update && apt-get install -y libreoffice --no-install-recommends
-      pip install -r requirements.txt
-    startCommand: python app.py
+    name: carta-notarial
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: PORT
-        value: 5000
+        value: 10000

@@ -11,7 +11,7 @@ LibreOffice debe estar instalado en el servidor (en Render: usa el buildpack o D
 """
 
 import os, zipfile, re, tempfile, subprocess
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -159,6 +159,10 @@ def fill_docx(data):
     return buf.read()
 
 # ─── rutas ───────────────────────────────────────────────
+@app.route('/', methods=['GET'])
+def index():
+    return send_from_directory(BASE_DIR, 'carta_notarial_wizard.html')
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok'})
