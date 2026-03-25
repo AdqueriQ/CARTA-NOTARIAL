@@ -463,9 +463,9 @@ function productoTemplate(i) {
         '<label>N° de Contrato</label>' +
         '<div class="contract-wrap">' +
           '<span class="contract-prefix">0011-</span>' +
-          '<input type="text" class="ncontrato-oficina contract-piece contract-piece-short" maxlength="4" autocomplete="off" inputmode="numeric">' +
+          '<input type="text" class="ncontrato-oficina contract-piece contract-piece-short" maxlength="4" autocomplete="off" inputmode="numeric" oninput="sanitizeContractInput(this, 4)" onpaste="handleContratoPaste(event)">' +
           '<span class="contract-sep">-</span>' +
-          '<input type="text" class="ncontrato-numero contract-piece" maxlength="10" autocomplete="off" inputmode="numeric">' +
+          '<input type="text" class="ncontrato-numero contract-piece" maxlength="10" autocomplete="off" inputmode="numeric" oninput="sanitizeContractInput(this, 10)" onpaste="handleContratoPaste(event)">' +
         '</div>' +
         '<div class="hint">Formato visual: 0011-0310-9600506798</div>' +
       '</div>' +
@@ -507,6 +507,24 @@ function removeProducto(btn) {
 
 function normalizeDigits(v) {
   return String(v || '').replace(/\D/g, '');
+}
+
+function sanitizeContractInput(input, maxLen) {
+  input.value = normalizeDigits(input.value).slice(0, maxLen);
+}
+
+function handleContratoPaste(event) {
+  var text = (event.clipboardData || window.clipboardData).getData('text') || '';
+  var clean = String(text).trim().replace(/\s+/g, '');
+  if (!clean) return;
+
+  var match = clean.match(/^(?:0011-)?(\d{4})-(\d{10})$/);
+  if (!match) return;
+
+  event.preventDefault();
+  var row = event.target.closest('.prod-row');
+  row.querySelector('.ncontrato-oficina').value = match[1];
+  row.querySelector('.ncontrato-numero').value = match[2];
 }
 
 function contratoCompleto(codOficina, numeroContrato) {
