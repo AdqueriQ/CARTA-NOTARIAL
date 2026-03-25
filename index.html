@@ -518,13 +518,30 @@ function handleContratoPaste(event) {
   var clean = String(text).trim().replace(/\s+/g, '');
   if (!clean) return;
 
-  var match = clean.match(/^(?:0011-)?(\d{4})-(\d{10})$/);
-  if (!match) return;
+  var ofi = '';
+  var num = '';
+
+  var dashed = clean.match(/^(?:0011-)?(\d{4})-(\d{10})$/);
+  if (dashed) {
+    ofi = dashed[1];
+    num = dashed[2];
+  } else {
+    var digits = clean.replace(/\D/g, '');
+    if (digits.length === 14) {
+      ofi = digits.slice(0, 4);
+      num = digits.slice(4);
+    } else if (digits.length === 18 && digits.slice(0, 4) === '0011') {
+      ofi = digits.slice(4, 8);
+      num = digits.slice(8);
+    } else {
+      return;
+    }
+  }
 
   event.preventDefault();
   var row = event.target.closest('.prod-row');
-  row.querySelector('.ncontrato-oficina').value = match[1];
-  row.querySelector('.ncontrato-numero').value = match[2];
+  row.querySelector('.ncontrato-oficina').value = ofi;
+  row.querySelector('.ncontrato-numero').value = num;
 }
 
 function contratoCompleto(codOficina, numeroContrato) {

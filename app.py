@@ -105,17 +105,10 @@ def fill_docx(data):
     doc = doc.replace(old_fecha, new_fecha)
 
     # ── 2. NOMBRE COMPLETO ─────────────────────────────────
-    nombre_para_pattern = r'(<w:p\b[^>]*>\s*<w:pPr>.*?</w:pPr>).*?<w:t>NOMBRE COMPLETO</w:t>.*?(</w:p>)'
-    replacement_run = make_run(data['nombre'], bold=is_juridica)
-    doc, replaced = re.subn(
-        nombre_para_pattern,
-        r'\1' + replacement_run + r'\2',
-        doc,
-        count=1,
-        flags=re.DOTALL,
+    doc = doc.replace(
+        '<w:t>NOMBRE COMPLETO</w:t>',
+        '<w:t xml:space="preserve">' + xml_escape(data['nombre']) + '</w:t>'
     )
-    if not replaced:
-        raise ValueError('No se encontró el párrafo NOMBRE COMPLETO en la plantilla')
 
     # ── 3. Representante Legal (insertar párrafo si aplica) ─
     if data.get('representante','').strip():
@@ -125,7 +118,7 @@ def fill_docx(data):
             '<w:jc w:val="both"/>'
             '<w:rPr><w:rFonts w:ascii="Lato" w:eastAsia="Lato" w:hAnsi="Lato" w:cs="Lato"/>'
             '<w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:pPr>'
-            + make_run(data['representante'], bold=is_juridica) +
+            + make_run(data['representante'], bold=True if is_juridica else False) +
             '</w:p>'
         )
         # insertar después del párrafo NOMBRE
