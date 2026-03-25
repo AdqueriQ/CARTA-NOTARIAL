@@ -406,6 +406,9 @@ body {
 ══════════════════════════════════════════════════════ */
 var BACKEND_URL = 'https://carta-notarial.onrender.com';
 
+/* Keep-alive: ping /health cada 10 min para evitar que Render duerma el servidor */
+setInterval(function(){ fetch(BACKEND_URL + '/health').catch(function(){}); }, 10 * 60 * 1000);
+
 /* ══ STATE ═════════════════════════════════════════════ */
 var cur = 1, TOTAL = 5, tipo = null;
 var MAX_PRODUCTOS = 6;
