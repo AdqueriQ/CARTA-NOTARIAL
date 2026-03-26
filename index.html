@@ -117,8 +117,16 @@ body {
   user-select: none;
 }
 .check-inline input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
+  -webkit-appearance: checkbox;
+  appearance: auto;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  outline: none;
   accent-color: var(--blue2);
   cursor: pointer;
 }
