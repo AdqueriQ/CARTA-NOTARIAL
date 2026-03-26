@@ -107,6 +107,21 @@ body {
   padding-right: 34px; cursor: pointer;
 }
 .field .hint { font-size: 11px; color: var(--muted); margin-top: 5px; }
+.check-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #4a6078;
+  user-select: none;
+}
+.check-inline input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--blue2);
+  cursor: pointer;
+}
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .contract-wrap {
   display: flex;
@@ -322,8 +337,8 @@ body {
     <div id="blkc" style="display:none">
       <div class="divider"><span>Estado Civil</span></div>
       <div class="field" style="margin-bottom:10px">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;color:var(--blue)">
-          <input type="checkbox" id="casado" onchange="toggleConyuge()" style="width:16px;height:16px;cursor:pointer">
+        <label class="check-inline">
+          <input type="checkbox" id="casado" onchange="toggleConyuge()">
           Casado
         </label>
         <div class="hint">Si marcas esta opción, se añadirá el cónyuge debajo del nombre en la carta.</div>
@@ -409,7 +424,7 @@ body {
         </svg>
         Descargar PDF
       </button>
-      <button class="btn btn-s" onclick="go(4)">&#8592; Editar</button>
+      <button class="btn btn-s" onclick="go(2)">&#8592; Editar</button>
     </div>
 
     <div class="server-status" id="srvStatus" style="display:none">
