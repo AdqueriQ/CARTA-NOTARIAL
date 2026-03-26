@@ -110,15 +110,27 @@ def fill_docx(data):
         '<w:t xml:space="preserve">' + xml_escape(data['nombre']) + '</w:t>'
     )
 
-    # ── 3. Representante Legal (insertar párrafo si aplica) ─
-    if data.get('representante','').strip():
+    # ── 3. Representante legal o cónyuge (insertar párrafo si aplica) ─
+    texto_secundario = ''
+    bold_secundario = False
+    if is_juridica:
+        texto_secundario = data.get('representante', '').strip()
+        bold_secundario = True
+    else:
+        es_casado = bool(data.get('casado', False))
+        conyuge = data.get('conyuge', '').strip()
+        if es_casado and conyuge:
+            texto_secundario = conyuge
+            bold_secundario = True
+
+    if texto_secundario:
         rep_para = (
             '<w:p w:rsidR="00B136EE" w:rsidRDefault="00B136EE">'
             '<w:pPr><w:spacing w:line="288" w:lineRule="auto"/>'
             '<w:jc w:val="both"/>'
             '<w:rPr><w:rFonts w:ascii="Lato" w:eastAsia="Lato" w:hAnsi="Lato" w:cs="Lato"/>'
             '<w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:pPr>'
-            + make_run(data['representante'], bold=True if is_juridica else False) +
+            + make_run(texto_secundario, bold=bold_secundario) +
             '</w:p>'
         )
         # insertar después del párrafo NOMBRE

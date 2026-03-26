@@ -319,6 +319,20 @@ body {
         <div class="hint">Aparece debajo de la raz&#243;n social en la carta.</div>
       </div>
     </div>
+    <div id="blkc" style="display:none">
+      <div class="divider"><span>Estado Civil</span></div>
+      <div class="field" style="margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;color:var(--blue)">
+          <input type="checkbox" id="casado" onchange="toggleConyuge()" style="width:16px;height:16px;cursor:pointer">
+          Casado
+        </label>
+        <div class="hint">Si marcas esta opción, se añadirá el cónyuge debajo del nombre en la carta.</div>
+      </div>
+      <div class="field" id="conyugeWrap" style="display:none">
+        <label>Nombre del Cónyuge</label>
+        <input type="text" id="conyuge" autocomplete="off" placeholder="Ej: Ana Mar&#237;a Torres Flores">
+      </div>
+    </div>
     <div class="field">
       <label>Direcci&#243;n</label>
       <input type="text" id="direccion" autocomplete="off" placeholder="Ej: Av. Los Pinos 245, Morales">
@@ -478,6 +492,10 @@ function go(n) {
   if (n === 3) {
     if (!G('nombre').trim()) { alert('Ingresa el nombre del cliente.'); return; }
     if (!G('direccion').trim()) { alert('Ingresa la dirección.'); return; }
+    if (tipo === 'natural' && isCasado() && !G('conyuge').trim()) {
+      alert('Ingresa el nombre del cónyuge.');
+      return;
+    }
   }
   if (n === 4) {
     var items = getProductos(true);
@@ -654,11 +672,28 @@ function setTipo(t) {
     document.getElementById('ln').textContent = 'Razón Social de la Empresa';
     document.getElementById('nombre').placeholder = 'Ej: Inversiones Tarapoto S.A.C.';
     document.getElementById('blkr').style.display = 'block';
+    document.getElementById('blkc').style.display = 'none';
   } else {
     document.getElementById('s2t').textContent = 'Datos del Cliente';
     document.getElementById('ln').textContent = 'Nombre Completo del Cliente';
     document.getElementById('nombre').placeholder = 'Ej: Juan Carlos Pérez Ríos';
     document.getElementById('blkr').style.display = 'none';
+    document.getElementById('blkc').style.display = 'block';
+  }
+}
+
+function isCasado() {
+  var el = document.getElementById('casado');
+  return !!(el && el.checked);
+}
+
+function toggleConyuge() {
+  var wrap = document.getElementById('conyugeWrap');
+  if (!wrap) return;
+  wrap.style.display = isCasado() ? 'block' : 'none';
+  if (!isCasado()) {
+    var conyuge = document.getElementById('conyuge');
+    if (conyuge) conyuge.value = '';
   }
 }
 
@@ -682,6 +717,7 @@ function goResumen() {
   var r = document.getElementById('resumen');
   var nombre  = G('nombre')   || '—';
   var rep     = G('representante');
+  var conyuge = G('conyuge');
   var dir     = G('direccion')|| '—';
   var cod     = G('cod_ofic') || '0310';
   var nom     = G('nom_ofic') || 'TARAPOTO';
@@ -695,6 +731,10 @@ function goResumen() {
     ['Nombre / Razón Social', nombre],
   ];
   if (tipo === 'juridica' && rep) rows.push(['Representante Legal', rep]);
+  if (tipo === 'natural') {
+    rows.push(['Estado civil', isCasado() ? 'Casado' : 'No consignado']);
+    if (isCasado() && conyuge) rows.push(['Cónyuge', conyuge]);
+  }
   rows.push(
     ['Dirección', dir],
     ['Oficina', cod + ' ' + nom],
@@ -726,6 +766,8 @@ function getPayload() {
     nombre:        G('nombre')   || 'NOMBRE COMPLETO',
     tipo_persona:  tipo || 'natural',
     representante: (tipo==='juridica') ? G('representante') : '',
+    casado:        (tipo==='natural') ? isCasado() : false,
+    conyuge:       (tipo==='natural' && isCasado()) ? G('conyuge') : '',
     direccion:     G('direccion')|| 'DIRECCIÓN',
     cod_ofic:      G('cod_ofic') || '0310',
     nom_ofic:      G('nom_ofic') || 'TARAPOTO',
