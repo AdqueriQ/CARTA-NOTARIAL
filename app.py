@@ -11,7 +11,7 @@ LibreOffice debe estar instalado en el servidor (en Render: usa el buildpack o D
 """
 
 import os, zipfile, re, tempfile, subprocess
-from flask import Flask, request, jsonify, send_file, send_from_directory
+from flask import Flask, request, jsonify, send_file, send_from_directory, make_response
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -48,6 +48,84 @@ def make_cell(text, width, align='both'):
         + make_run(text) +
         '</w:p></w:tc>'
     )
+
+def coerce_deuda_judicial(data):
+    """Interpreta deuda_judicial desde JSON (bool, int, str)."""
+    if not isinstance(data, dict):
+        return False
+    dj = data.get('deuda_judicial')
+    if dj is True or dj == 1:
+        return True
+    if dj is False or dj is None or dj == 0:
+        return False
+    if isinstance(dj, str):
+        s = dj.strip().lower()
+        if s in ('false', '0', 'no', 'off', ''):
+            return False
+        if s in ('true', '1', 'si', 'sí', 'yes', 'on'):
+            return True
+    return False
+
+
+def replace_ref_obligaciones_judicial(doc):
+    """
+    Sustituye el texto bajo Ref. en el .docx.
+    1) Nodo <w:t> completo (con o sin atributos).
+    2) Respaldo: texto literal en el XML (por si Word partió el run de otra forma).
+    """
+    phrase = 'Obligaciones Pendientes de Pago'
+    replacement = 'Pase A Cobranza Judicial'
+    pat = re.compile(
+        r'<w:t(\s[^>]*)?>' + re.escape(phrase) + r'</w:t>',
+        flags=re.IGNORECASE,
+    )
+    doc = pat.sub('<w:t>' + replacement + '</w:t>', doc)
+    if phrase.lower() in doc.lower():
+        doc = re.sub(re.escape(phrase), replacement, doc, flags=re.IGNORECASE)
+    return doc
+
+
+def apply_ref_subline(doc, data):
+    """
+    Línea Ref. + texto en negrita/subrayado.
+    - Plantilla antigua: ya trae «Obligaciones Pendientes de Pago» → solo cambia a judicial si aplica.
+    - Plantilla actual (sin esa frase): inserta el run tras «Ref.» y escribe el texto según el flag.
+    """
+    default_txt = 'Obligaciones Pendientes de Pago'
+    judicial_txt = 'Pase A Cobranza Judicial'
+    judicial = coerce_deuda_judicial(data)
+    target = judicial_txt if judicial else default_txt
+    esc = xml_escape(target)
+    ref_place = '[[BBVA_REF_SUBLINE]]'
+    # Tras Ref.: tab + espacio; solo una ocurrencia en la carta original
+    needle = '<w:t xml:space="preserve"> </w:t></w:r></w:p>'
+
+    if default_txt in doc:
+        if judicial:
+            doc = replace_ref_obligaciones_judicial(doc)
+        return doc
+
+    if ref_place in doc:
+        doc = doc.replace('<w:t>' + ref_place + '</w:t>', '<w:t>' + esc + '</w:t>')
+        return doc
+
+    if needle in doc:
+        run_xml = (
+            '<w:r><w:rPr><w:rFonts w:ascii="Lato" w:eastAsia="Lato" w:hAnsi="Lato" w:cs="Lato"/>'
+            '<w:b/><w:bCs/><w:sz w:val="20"/><w:szCs w:val="20"/><w:u w:val="single"/></w:rPr>'
+            '<w:t>' + ref_place + '</w:t></w:r>'
+        )
+        doc = doc.replace(
+            needle,
+            '<w:t xml:space="preserve"> </w:t></w:r>' + run_xml + '</w:p>',
+            1,
+        )
+        doc = doc.replace('<w:t>' + ref_place + '</w:t>', '<w:t>' + esc + '</w:t>')
+    elif judicial:
+        doc = replace_ref_obligaciones_judicial(doc)
+
+    return doc
+
 
 def normalize_products(data):
     productos = data.get('productos')
@@ -197,6 +275,9 @@ def fill_docx(data):
     new_tbl = tbl_xml.replace(old_data_row, ''.join(row_chunks), 1)
     doc = doc[:tbl_start] + new_tbl + doc[tbl_end:]
 
+    # ── Ref. carta (después de la tabla): obligaciones vs. cobranza judicial ──
+    doc = apply_ref_subline(doc, data)
+
     files['word/document.xml'] = doc.encode('utf-8')
 
     # Escribir docx en memoria
@@ -211,7 +292,10 @@ def fill_docx(data):
 # ─── rutas ───────────────────────────────────────────────
 @app.route('/', methods=['GET'])
 def index():
-    return send_from_directory(BASE_DIR, 'index.html')
+    resp = make_response(send_from_directory(BASE_DIR, 'index.html'))
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -233,6 +317,16 @@ def generar_pdf():
     if len(productos) > 6:
         return jsonify({'error': 'Solo se permiten hasta 6 productos'}), 400
     data['productos'] = productos
+
+    dj_arg = request.args.get('dj')
+    if dj_arg is not None and str(dj_arg).strip() != '':
+        v = str(dj_arg).strip().lower()
+        if v in ('1', 'true', 'yes', 'si', 'sí', 'on'):
+            data['deuda_judicial'] = True
+        elif v in ('0', 'false', 'no', 'off'):
+            data['deuda_judicial'] = False
+
+    data['deuda_judicial'] = coerce_deuda_judicial(data)
 
     try:
         docx_bytes = fill_docx(data)

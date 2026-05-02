@@ -375,6 +375,14 @@ body {
     <div class="field" style="margin-top:8px">
       <div class="hint">M&#225;ximo 6 productos. Formato de contrato: <strong>0011-0310-9600506798</strong>.</div>
     </div>
+    <div class="divider"><span>Referencia en la carta (Ref.)</span></div>
+    <div class="field" style="margin-bottom:10px">
+      <label class="check-inline">
+        <input type="checkbox" id="deudaJudicial" onchange="syncDeudaJudicialHint()">
+        &#191;Es deuda judicial? (marca para S&#237;)
+      </label>
+      <div class="hint" id="deudaJudicialHint">Sin marcar: en el PDF aparece <strong>Obligaciones pendientes de pago</strong>. Marcado: <strong>Pase A Cobranza Judicial</strong>.</div>
+    </div>
     <div class="nav">
       <button class="btn btn-g" onclick="go(2)">&#8592; Atr&#225;s</button>
       <button class="btn btn-p" onclick="go(4)">Continuar &#8594;</button>
@@ -720,6 +728,19 @@ function toggleConyuge() {
   }
 }
 
+function isDeudaJudicial() {
+  var el = document.getElementById('deudaJudicial');
+  return !!(el && el.checked);
+}
+
+function syncDeudaJudicialHint() {
+  var hint = document.getElementById('deudaJudicialHint');
+  if (!hint) return;
+  hint.innerHTML = isDeudaJudicial()
+    ? 'Se usar&#225; en la carta: <strong>Pase A Cobranza Judicial</strong> (en lugar de obligaciones pendientes de pago).'
+    : 'Sin marcar: en el PDF aparece <strong>Obligaciones pendientes de pago</strong>. Marcado: <strong>Pase A Cobranza Judicial</strong>.';
+}
+
 function G(id) { return (document.getElementById(id)||{}).value||''; }
 
 function fmtFecha(v) {
@@ -761,6 +782,7 @@ function goResumen() {
   rows.push(
     ['Dirección', dir],
     ['Oficina', cod + ' ' + nom],
+    ['¿Deuda judicial?', isDeudaJudicial() ? 'Sí (Pase A Cobranza Judicial)' : 'No (Obligaciones pendientes de pago)'],
     ['—', ''],
     ['Fecha', fecha],
     ['Teléfono', tel]
@@ -799,6 +821,7 @@ function getPayload() {
     monto:         productos[0].monto,
     productos:     productos,
     telefono:      G('telefono') || '996293543',
+    deuda_judicial: isDeudaJudicial(),
   };
 }
 
@@ -809,13 +832,13 @@ function generarPDF() {
   btn.textContent = 'Generando PDF...';
   err.style.display = 'none';
 
-  var url = BACKEND_URL.replace(/\/$/, '') + '/generar-pdf';
   var payload = getPayload();
   if (!payload) {
     btn.disabled = false;
     btn.textContent = 'Descargar PDF';
     return;
   }
+  var url = BACKEND_URL.replace(/\/$/, '') + '/generar-pdf?dj=' + (payload.deuda_judicial ? '1' : '0');
 
   fetch(url, {
     method:  'POST',
