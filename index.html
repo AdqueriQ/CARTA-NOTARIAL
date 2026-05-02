@@ -501,6 +501,8 @@ setInterval(function(){ fetch(BACKEND_URL + '/health').catch(function(){}); }, 8
 var cur = 1, TOTAL = 5, tipo = null;
 var MAX_PRODUCTOS = 6;
 document.getElementById('fecha').valueAsDate = new Date();
+loadOficinaPersistidas();
+bindOficinaPersistencia();
 
 /* progress */
 var pt = document.getElementById('pt');
@@ -741,6 +743,45 @@ function syncDeudaJudicialHint() {
     : 'Sin marcar: en el PDF aparece <strong>Obligaciones pendientes de pago</strong>. Marcado: <strong>Pase A Cobranza Judicial</strong>.';
 }
 
+/* Datos de oficina (paso 4): persisten en este navegador para el siguiente uso */
+var LS_OFIC = {
+  ciudad: 'carta_notarial_ofic_ciudad',
+  cod:    'carta_notarial_ofic_cod',
+  nom:    'carta_notarial_ofic_nom',
+  tel:    'carta_notarial_ofic_tel'
+};
+
+function saveOficinaPersistidas() {
+  try {
+    localStorage.setItem(LS_OFIC.ciudad, G('ciudad'));
+    localStorage.setItem(LS_OFIC.cod, G('cod_ofic'));
+    localStorage.setItem(LS_OFIC.nom, G('nom_ofic'));
+    localStorage.setItem(LS_OFIC.tel, G('telefono'));
+  } catch (e) {}
+}
+
+function loadOficinaPersistidas() {
+  try {
+    var c = localStorage.getItem(LS_OFIC.ciudad);
+    if (c !== null && String(c).length) document.getElementById('ciudad').value = c;
+    c = localStorage.getItem(LS_OFIC.cod);
+    if (c !== null && String(c).length) document.getElementById('cod_ofic').value = c;
+    c = localStorage.getItem(LS_OFIC.nom);
+    if (c !== null && String(c).length) document.getElementById('nom_ofic').value = c;
+    c = localStorage.getItem(LS_OFIC.tel);
+    if (c !== null && String(c).length) document.getElementById('telefono').value = c;
+  } catch (e) {}
+}
+
+function bindOficinaPersistencia() {
+  ['ciudad', 'cod_ofic', 'nom_ofic', 'telefono'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', saveOficinaPersistidas);
+    el.addEventListener('change', saveOficinaPersistidas);
+  });
+}
+
 function G(id) { return (document.getElementById(id)||{}).value||''; }
 
 function fmtFecha(v) {
@@ -839,6 +880,8 @@ function generarPDF() {
     return;
   }
   var url = BACKEND_URL.replace(/\/$/, '') + '/generar-pdf?dj=' + (payload.deuda_judicial ? '1' : '0');
+
+  saveOficinaPersistidas();
 
   fetch(url, {
     method:  'POST',
